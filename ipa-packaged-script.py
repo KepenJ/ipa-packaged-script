@@ -7,8 +7,10 @@ from datetime import datetime
 
 # config file name
 config_file_name = "ipa-package-config.file"
-# tag name
+# project name
 project_name = None
+# tag name
+tag_name = None
 # project path(default path for the execution of the current script)
 project_path = os.getcwd()
 # output folder name
@@ -88,6 +90,7 @@ def init_config_file():
     global config_file_name
     global project_path
     global out_out_dir_name
+    global tag_name
 
     fout = open(project_path + '/' + out_out_dir_name + '/' + config_file_name, 'w')
     js = {}
@@ -95,6 +98,7 @@ def init_config_file():
     js["provisioning_profile_name"] = None
     js["project_path"] = None
     js["project_name"] = None
+    js["tag_name"] = None
     js["certificate_name"] = None
     js["fir_token"] = None
     js["config_date"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -112,6 +116,7 @@ def input_config_data():
     global fir_token
     global provisioning_profile_name
     global tag_version
+    global tag_name
 
     print "Please enter the following parameters:"
     # show config file info
@@ -125,9 +130,14 @@ def input_config_data():
     if not os.path.exists(project_path):
         print "Can not find this project dir!"
         sys.exit()
-    project_name = raw_input("input tag name:")
+    project_name = raw_input("input project name:")
     # analyzing the current project name is empty
     if is_empty(project_name):
+        print "project name is empty！"
+        sys.exit()
+    tag_name = raw_input("input tag name:")
+    # analyzing the current project name is empty
+    if is_empty(tag_name):
         print "Tag name is empty！"
         sys.exit()
     certificate_name = raw_input("input certificate name:")
@@ -155,10 +165,12 @@ def show_config_content():
     global project_name
     global fir_token
     global tag_version
+    global tag_name
 
     print "************CONFIG FILE*******************"
     print "PROJECT PATH:                %s" % project_path
-    print "TAG NAME:                    %s" % project_name
+    print "TAG NAME:                    %s" % tag_name
+    print "PROJECT NAME:                %s" % project_name
     print "TAG VERSION:                 %s" % tag_version
     print "CERTIFICATE NAME:            %s" % certificate_name
     print "PROVISIONING PROFILE NAME:   %s" % provisioning_profile_name
@@ -175,6 +187,7 @@ def read_config_file():
     global fir_token
     global config_date
     global tag_version
+    global tag_name
 
     fin = open(project_path + '/' + out_out_dir_name + '/' + config_file_name, 'r')
     for each_line in fin:
@@ -186,6 +199,7 @@ def read_config_file():
             provisioning_profile_name = js["provisioning_profile_name"]
             project_path = js["project_path"]
             project_name = js["project_name"]
+            tag_name = js["tag_name"]
             certificate_name = js["certificate_name"]
             fir_token = js["fir_token"]
             config_date = js["config_date"]
@@ -207,12 +221,14 @@ def write_config_file():
     global fir_token
     global out_out_dir_name
     global tag_version
+    global tag_name
 
     fout = open(project_path + '/' + out_out_dir_name + '/' + config_file_name, 'w')
     js = {}
     js["provisioning_profile_name"] = provisioning_profile_name
     js["project_path"] = project_path
     js["project_name"] = project_name
+    js["tag_name"] = tag_name
     js["certificate_name"] = certificate_name
     js["fir_token"] = fir_token
     js["config_date"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -229,7 +245,9 @@ def isd_data_available():
     global project_path
     global project_name
     global provisioning_profile_name
-    if is_empty(project_path) or is_empty(project_name) or is_empty(certificate_name) or is_empty(provisioning_profile_name):
+    global tag_name
+
+    if is_empty(project_path) or is_empty(project_name) or is_empty(tag_name) or is_empty(certificate_name) or is_empty(provisioning_profile_name):
         return False
     else:
         return True
@@ -239,9 +257,10 @@ def clean_project():
     global all_the_text
     global project_path
     global project_name
+    global tag_name
 
     print "Cleanup project..."
-    os.system('cd %s;xcodebuild -target %s clean' % (project_path, project_name))
+    os.system("cd %s;xcodebuild -target '%s' clean" % (project_path, tag_name))
 
     print "Cleanup pbxproj file..."
     path = "%s/%s.xcodeproj/project.pbxproj" % (project_path, project_name)
@@ -266,14 +285,15 @@ def clean_project():
 # create ipa
 def build_creat_ipa():
     global project_path
-    global project_name
     global certificate_name
     global config_date
     global provisioning_profile_name
     global tag_version
+    global tag_name
+
     # build
     print "Build project..."
-    os.system("cd %s;xcodebuild -target %s CODE_SIGN_IDENTITY='%s' PROVISIONING_PROFILE='%s'" % (project_path, project_name, certificate_name,provisioning_profile_name))
+    os.system("cd %s;xcodebuild -configuration Release -target '%s' CODE_SIGN_IDENTITY='%s' PROVISIONING_PROFILE='%s'" % (project_path, tag_name, certificate_name,provisioning_profile_name))
     # if you do not Release_xx folder , then create one
     if os.path.exists(project_path + '/' + out_out_dir_name+'/'+"Release_%s"%(tag_version)):
         print "Emptying the previous folder..."
@@ -283,15 +303,21 @@ def build_creat_ipa():
     print "Creating new folders..."
     # create a new folder
     os.system("cd %s;mkdir %s" % (project_path + '/' + out_out_dir_name, "Release_%s"%(tag_version)))
-    os.system("chmod -R 777 %s" %"Release_%s"%(tag_version))
+    os.system("chmod 777 %s" %"Release_%s"%(tag_version))
     # generate ipa file
     print "Generating ipa file..."
+    # find .app file
+    file = find_file('.app',"%s/build/Release-iphoneos"%project_path)
+    if is_empty(file):
+        print "Do not have .app file!"
+        sys.exit()
+    file_name = file[0:len(file)-len('.app')]
     os.system(
-        "cd %s;xcrun -sdk iphoneos PackageApplication -v %s/build/Release-iphoneos/%s.app -o %s/%s.ipa CODE_SIGN_IDENTITY='%s' PROVISIONING_PROFILE='%s'" % (
-            project_path, project_path,project_name, project_path + '/' + out_out_dir_name+'/'+"Release_%s"%(tag_version),project_name, certificate_name,provisioning_profile_name))
+        "cd %s;xcrun -sdk iphoneos PackageApplication -v %s/build/Release-iphoneos/'%s'.app -o %s/'%s'.ipa CODE_SIGN_IDENTITY='%s' PROVISIONING_PROFILE='%s'" % (
+            project_path, project_path,file_name, project_path + '/' + out_out_dir_name+'/'+"Release_%s"%(tag_version),file_name, certificate_name,provisioning_profile_name))
 
     # the translation of the build / Release-iphoneos / folder below the content over this new folder inside
-    os.system("cp -R %s/build/Release-iphoneos/ %s/%s/Release_%s/" % (project_path, project_path, out_out_dir_name, tag_version))
+    os.system("cp -R %s/build/Release-iphoneos/ %s/%s/Release_'%s'/" % (project_path, project_path, out_out_dir_name, tag_version))
     # delete the previous build / folder below the content
     os.system("cd %s;rm -r -f %s" % (project_path,"./build"))
     # record Time
@@ -302,16 +328,16 @@ def build_creat_ipa():
 # upload fir.im (Optional)
 def upload_to_fir():
     global fir_token
-    global project_name
+    global tag_name
     global project_path
     global out_out_dir_name
     global fir_address
 
     fir_address = ""
     if not is_empty(fir_token):
-        if os.path.exists("%s/%s/Release_%s/%s.ipa" % (project_path,out_out_dir_name,tag_version, project_name)):
+        if os.path.exists("%s/'%s'/Release_'%s'/'%s'.ipa" % (project_path,out_out_dir_name,tag_version, tag_name)):
             print "Uploading fir..."
-            ret = os.popen("fir p '%s/%s/Release_%s/%s.ipa' -T '%s'" % (project_path,out_out_dir_name,tag_version, project_name, fir_token))
+            ret = os.popen("fir p '%s/%s/Release_%s/'%s'.ipa' -T '%s'" % (project_path,out_out_dir_name,tag_version, tag_name, fir_token))
             for info in ret.readlines():
                 if "Published succeed" in info:
                     location = info.find('http://')
@@ -323,6 +349,13 @@ def upload_to_fir():
 
     os.system('open %s' % (project_path + '/' + out_out_dir_name))
     return fir_address
+
+#find .app file
+def find_file(file,dir_path):
+    for root, subFolders, files in os.walk(dir_path):
+        for f in subFolders:
+            if f[-4:] == file:
+                return f
 
 if __name__ == '__main__':
     os.system("clear")
@@ -339,13 +372,20 @@ if __name__ == '__main__':
 
     build_creat_ipa()
 
+
     url = upload_to_fir()
     if not is_empty(url):
         os.system("clear")
         print "**********UPLOAD SUCCESS**********"
-        print "TAG NAME:            %s"%project_name
-        print "FIR ADDRESS:         %s"%fir_address
-        print "RELEASE VERSION:     %s"%tag_version
-        print "DATE:                %s"%datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print "TAG NAME:            '%s'"%tag_name
+        print "FIR ADDRESS:         '%s'"%fir_address
+        print "RELEASE VERSION:     '%s'"%tag_version
+        print "DATE:                '%s'"%datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print "**********UPLOAD SUCCESS**********"
 
+    # root = "%s/build/Release-iphoneos/"%project_path
+    # print "root=",root
+    # file = find_file('.app',"%s/build/Release-iphoneos/"%project_path)
+    # print "file=",file
+    # file_name = file[0:len(file)-len('.app')]
+    # print "file_name=",file_name

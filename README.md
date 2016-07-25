@@ -19,6 +19,7 @@ Python 2.7
 ### Packing parameters
 
 + `PROJECT PATH` default is current project document path.
++ `PROJECT NAME` your project name.
 + `TAG NAME` your targets name.
 + `TAG VERSION` default is 1.0.0.
 + `CERTIFICATE NAME` you can find your certificate in Keychain Access,we just need name
